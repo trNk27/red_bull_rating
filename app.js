@@ -112,6 +112,11 @@
     $("#exportBtn").hidden = entries.length === 0;
     $(".sort").hidden = entries.length === 0;
 
+    // FLIP: remember where each row was so reordering can glide instead of jump.
+    const before = new Map([...list.children].map((li) => [li.dataset.id, li.getBoundingClientRect().top]));
+    const firstRender = !render.done;
+    render.done = true;
+
     let rank = 0, prev = null, seen = 0;
     list.innerHTML = entries.map((entry) => {
       const ed = edition(entry);
@@ -121,7 +126,7 @@
       const buttons = Array.from({ length: 10 }, (_, i) => {
         const v = i + 1;
         const on = entry.score != null && v <= entry.score;
-        return `<button data-act="score" data-v="${v}" class="${on ? "on" : ""} ${v === entry.score ? "cur" : ""}"
+        return `<button data-act="score" data-v="${v}" style="--i:${i}" class="${on ? "on" : ""} ${v === entry.score ? "cur" : ""}"
           aria-label="Score ${v}">${v}</button>`;
       }).join("");
       return `<li class="item" data-id="${esc(entry.id)}">
@@ -146,6 +151,25 @@
       </li>`;
     }).join("");
 
+    if (reduceMotion) return;
+    [...list.children].forEach((li, i) => {
+      if (firstRender) {
+        li.animate(
+          [{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }],
+          { duration: 500, delay: 60 * i, easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" }
+        );
+        return;
+      }
+      const old = before.get(li.dataset.id);
+      if (old == null) return;
+      const dy = old - li.getBoundingClientRect().top;
+      if (Math.abs(dy) > 1) {
+        li.animate(
+          [{ transform: `translateY(${dy}px)` }, { transform: "none" }],
+          { duration: 550, easing: "cubic-bezier(.2,.9,.25,1.05)" }
+        );
+      }
+    });
   }
 
   $("#list").addEventListener("click", (e) => {
@@ -159,10 +183,12 @@
       entry.score = entry.score === v ? null : v;
       save(); render();
       flash(entry.id);
+      celebrate(entry);
     } else if (act === "remove") {
       const ed = edition(entry);
       state.entries = state.entries.filter((x) => x !== entry);
-      save(); render();
+      save();
+      collapse(li).then(render);
       toast(`Removed ${ed.name}`, () => { state.entries.push(entry); save(); render(); });
     } else if (act === "img") {
       openImgDialog(entry);
@@ -181,6 +207,75 @@
     el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
     const r = el.getBoundingClientRect();
     if (r.top < 0 || r.bottom > innerHeight) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // ---------- animations ----------
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const itemEl = (id) => document.querySelector(`.item[data-id="${CSS.escape(id)}"]`);
+  const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  function celebrate(entry) {
+    const li = itemEl(entry.id);
+    if (!li || reduceMotion) return;
+    replay(li.querySelector(".scores"), "filling");
+    const big = li.querySelector(".big-score");
+    if (big) replay(big, "bump");
+    const can = li.querySelector(".can-box");
+    if (entry.score === 10) {
+      replay(can, "hype");
+      const r = li.querySelector('.scores button[data-v="10"]').getBoundingClientRect();
+      confetti(r.left + r.width / 2, r.top + r.height / 2);
+    } else if (entry.score === 1) {
+      replay(can, "crush");
+    } else if (entry.score != null) {
+      replay(can, "wiggle");
+    }
+  }
+
+  function confetti(x, y) {
+    const colors = ["#e4032e", "#111111", "#ffc906", "#1e3a8a", "#e4032e"];
+    for (let i = 0; i < 46; i++) {
+      const bit = document.createElement("div");
+      const w = 6 + Math.random() * 6;
+      bit.className = "confetti";
+      bit.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${w * (Math.random() < 0.5 ? 0.45 : 1)}px;background:${colors[i % colors.length]}`;
+      document.body.appendChild(bit);
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+      const speed = 160 + Math.random() * 220;
+      const dx = Math.cos(angle) * speed, dy = Math.sin(angle) * speed;
+      const spin = (Math.random() - 0.5) * 1080;
+      bit.animate([
+        { transform: "translate(-50%,-50%) rotate(0deg)", opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(${spin / 2}deg)`, opacity: 1, offset: 0.45 },
+        { transform: `translate(calc(-50% + ${dx * 1.4}px), calc(-50% + ${dy + 320}px)) rotate(${spin}deg)`, opacity: 0 },
+      ], { duration: 1300 + Math.random() * 600, easing: "cubic-bezier(.15,.7,.4,1)" }).onfinish = () => bit.remove();
+    }
+  }
+
+  function dropIn(id) {
+    const li = itemEl(id);
+    if (!li || reduceMotion) return;
+    const box = li.querySelector(".can-box");
+    replay(box, "drop");
+    // Fizz: bubbles rising out of the freshly opened can.
+    for (let i = 0; i < 12; i++) {
+      const b = document.createElement("span");
+      b.className = "bubble";
+      const size = 4 + Math.random() * 6;
+      b.style.cssText = `width:${size}px;height:${size}px;left:${30 + Math.random() * 40}%;animation-delay:${450 + Math.random() * 500}ms`;
+      box.appendChild(b);
+      b.addEventListener("animationend", () => b.remove());
+    }
+  }
+
+  function collapse(li) {
+    if (reduceMotion) return Promise.resolve();
+    const h = li.offsetHeight;
+    return li.animate([
+      { opacity: 1, transform: "none", height: h + "px" },
+      { opacity: 0, transform: "translateX(40px)", height: h + "px", offset: 0.5 },
+      { opacity: 0, transform: "translateX(40px)", height: "0px", paddingTop: 0, paddingBottom: 0 },
+    ], { duration: 450, easing: "ease-in-out", fill: "forwards" }).finished;
   }
 
   // ---------- add dialog ----------
@@ -203,7 +298,7 @@
       (!q || `${e.name} ${e.flavor} ${e.group}`.toLowerCase().includes(q))
     );
     $("#grid").innerHTML = items.length
-      ? items.map((e) => `<button class="tile" data-id="${e.id}" ${have.has(e.id) ? "disabled" : ""}>
+      ? items.map((e, i) => `<button class="tile" style="--i:${Math.min(i, 20)}" data-id="${e.id}" ${have.has(e.id) ? "disabled" : ""}>
           ${e.isNew ? '<span class="badge">New</span>' : ""}
           ${have.has(e.id) ? '<span class="done">✓</span>' : ""}
           <div class="can-mini">${canHTML(e)}</div>
@@ -244,6 +339,7 @@
     addDlg.close();
     render();
     flash(partial.id);
+    dropIn(partial.id);
     toast(`Added ${edition(partial).name} — now give it a score`);
   }
 
