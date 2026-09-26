@@ -27,3 +27,5 @@ Add a line to `editions.js`. Set `isNew: true` to show the "New" badge.
 ## Hosting on GitHub Pages
 
 Live at https://trnk27.github.io/red_bull_rating/ once Pages is on: Settings → Pages → Build and deployment → Deploy from a branch → `main` / `(root)`.
+
+When you change `styles.css`, `app.js` or `editions.js`, bump the `?v=` number on its link in `index.html` so browsers don't keep a stale cached copy.
