@@ -46,7 +46,7 @@
       else lines.push(w);
     }
     const text = lines.slice(0, 3).map((l, i) =>
-      `<text x="30" y="${80 + i * 7}" text-anchor="middle" font-family="Archivo Black, Inter, sans-serif" font-size="6" fill="${ink}">${esc(l.toUpperCase())}</text>`
+      `<text x="30" y="${80 + i * 7}" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-weight="700" font-size="6" fill="${ink}">${esc(l.toUpperCase())}</text>`
     ).join("");
     return `<svg viewBox="0 0 60 112" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(ed.name)}">
       <defs>
@@ -69,7 +69,7 @@
         <rect x="7" y="12" width="46" height="90" fill="url(#${id}b)" opacity=".15"/>
         <rect x="16" y="12" width="5" height="90" fill="#fff" opacity=".18"/>
       </g>
-      <text x="30" y="24" text-anchor="middle" font-family="Archivo Black, Inter, sans-serif" font-size="6.2" fill="${ink}" letter-spacing=".3">RED BULL</text>
+      <text x="30" y="24" text-anchor="middle" font-family="Roboto, Arial, sans-serif" font-weight="700" font-size="6.2" fill="${ink}" letter-spacing=".3">RED BULL</text>
       <circle cx="30" cy="57" r="11" fill="${ed.accent}" opacity=".95"/>
       <text x="30" y="61.5" text-anchor="middle" font-size="12">${ed.emoji || ""}</text>
       ${text}
@@ -91,7 +91,7 @@
     }
   }, true);
 
-  const scoreColor = (s) => `hsl(${((s - 1) / 9) * 120}, 80%, 55%)`;
+  const scoreColor = (s) => `hsl(${((s - 1) / 9) * 125}, 70%, 42%)`;
   function esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -109,7 +109,8 @@
     const list = $("#list");
     const entries = sorted();
     $("#empty").hidden = entries.length > 0;
-    $(".toolbar").hidden = entries.length === 0;
+    $("#exportBtn").hidden = entries.length === 0;
+    $(".sort").hidden = entries.length === 0;
 
     let rank = 0, prev = null, seen = 0;
     list.innerHTML = entries.map((entry) => {
@@ -121,7 +122,7 @@
         const v = i + 1;
         const on = entry.score != null && v <= entry.score;
         return `<button data-act="score" data-v="${v}" class="${on ? "on" : ""} ${v === entry.score ? "cur" : ""}"
-          style="${on ? `background:${scoreColor(entry.score)}` : ""}" aria-label="Score ${v}">${v}</button>`;
+          aria-label="Score ${v}">${v}</button>`;
       }).join("");
       return `<li class="item" data-id="${esc(entry.id)}">
         <div class="rank ${showRank ? "scored" : ""}">${showRank ? rank : "–"}</div>
@@ -133,7 +134,7 @@
               <div class="flavor">${esc(ed.flavor)}</div>
             </div>
             ${entry.score != null
-              ? `<div class="big-score" style="color:${scoreColor(entry.score)}">${entry.score}<small>/10</small></div>`
+              ? `<div class="big-score"><i style="background:${scoreColor(entry.score)}"></i>${entry.score}<small> / 10</small></div>`
               : `<div class="big-score none">Not rated</div>`}
           </div>
           <div class="scores">${buttons}</div>
@@ -145,11 +146,6 @@
       </li>`;
     }).join("");
 
-    const rated = state.entries.filter((e) => e.score != null);
-    const avg = rated.length ? (rated.reduce((s, e) => s + e.score, 0) / rated.length).toFixed(1) : null;
-    $("#stats").textContent = state.entries.length
-      ? `${rated.length} of ${state.entries.length} rated${avg ? ` · average ${avg}/10` : ""} · ${EDITIONS.length} editions in the catalogue`
-      : "Rank every edition from 1 to 10.";
   }
 
   $("#list").addEventListener("click", (e) => {
